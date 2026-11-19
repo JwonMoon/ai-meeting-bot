@@ -40,6 +40,9 @@ class Settings:
     jira_project_key: str
     jira_issue_type_id: str
     teams_webhook_url: str
+    ollama_base_url: str
+    ollama_model: str
+    ollama_num_ctx: int
 
     def require(self, *names: str) -> None:
         """이름으로 지정한 설정이 비어 있으면 어느 것이 비었는지 알려 준다."""
@@ -65,4 +68,14 @@ def load_settings(env_path: Optional[Path] = None) -> Settings:
         jira_project_key=get("JIRA_PROJECT_KEY"),
         jira_issue_type_id=get("JIRA_ISSUE_TYPE_ID"),
         teams_webhook_url=get("TEAMS_WEBHOOK_URL"),
+        ollama_base_url=(get("OLLAMA_BASE_URL") or "http://localhost:11434").rstrip("/"),
+        ollama_model=get("OLLAMA_MODEL"),
+        ollama_num_ctx=_to_int("OLLAMA_NUM_CTX", get("OLLAMA_NUM_CTX") or "16384"),
     )
+
+
+def _to_int(key: str, value: str) -> int:
+    try:
+        return int(value)
+    except ValueError:
+        raise ConfigError("%s 는 숫자여야 함: %r" % (key, value)) from None
