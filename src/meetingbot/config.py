@@ -43,6 +43,22 @@ class Settings:
     ollama_base_url: str
     ollama_model: str
     ollama_num_ctx: int
+    # 음성 인식 (stt.py 설명 참고)
+    stt_command: str = ""
+    stt_path_map: str = ""
+    stt_language: str = ""
+    stt_max_new_tokens: int = 400
+    stt_chunk_seconds: float = 60.0
+    stt_silence_db: float = -40.0
+    stt_min_silence_seconds: float = 0.7
+    stt_chunk_timeout_seconds: int = 600
+    stt_slow_factor: float = 2.0
+    # 작업 기록과 녹음 파일을 두는 폴더
+    data_dir: str = ""
+    # 공용 GPU 양보 (gpu.py 설명 참고)
+    gpu_busy_utilization: int = 20
+    gpu_wait_minutes: int = 30
+    gpu_poll_seconds: int = 30
 
     def require(self, *names: str) -> None:
         """이름으로 지정한 설정이 비어 있으면 어느 것이 비었는지 알려 준다."""
@@ -71,11 +87,31 @@ def load_settings(env_path: Optional[Path] = None) -> Settings:
         ollama_base_url=(get("OLLAMA_BASE_URL") or "http://localhost:11434").rstrip("/"),
         ollama_model=get("OLLAMA_MODEL"),
         ollama_num_ctx=_to_int("OLLAMA_NUM_CTX", get("OLLAMA_NUM_CTX") or "16384"),
+        stt_command=get("STT_COMMAND"),
+        stt_path_map=get("STT_PATH_MAP"),
+        stt_language=get("STT_LANGUAGE"),
+        stt_max_new_tokens=_to_int("STT_MAX_NEW_TOKENS", get("STT_MAX_NEW_TOKENS") or "400"),
+        stt_chunk_seconds=_to_float("STT_CHUNK_SECONDS", get("STT_CHUNK_SECONDS") or "60"),
+        stt_silence_db=_to_float("STT_SILENCE_DB", get("STT_SILENCE_DB") or "-40"),
+        stt_min_silence_seconds=_to_float("STT_MIN_SILENCE_SECONDS", get("STT_MIN_SILENCE_SECONDS") or "0.7"),
+        stt_chunk_timeout_seconds=_to_int("STT_CHUNK_TIMEOUT_SECONDS", get("STT_CHUNK_TIMEOUT_SECONDS") or "600"),
+        stt_slow_factor=_to_float("STT_SLOW_FACTOR", get("STT_SLOW_FACTOR") or "2"),
+        data_dir=get("DATA_DIR") or str(REPO_ROOT / "data"),
+        gpu_busy_utilization=_to_int("GPU_BUSY_UTILIZATION", get("GPU_BUSY_UTILIZATION") or "20"),
+        gpu_wait_minutes=_to_int("GPU_WAIT_MINUTES", get("GPU_WAIT_MINUTES") or "30"),
+        gpu_poll_seconds=_to_int("GPU_POLL_SECONDS", get("GPU_POLL_SECONDS") or "30"),
     )
 
 
 def _to_int(key: str, value: str) -> int:
     try:
         return int(value)
+    except ValueError:
+        raise ConfigError("%s 는 숫자여야 함: %r" % (key, value)) from None
+
+
+def _to_float(key: str, value: str) -> float:
+    try:
+        return float(value)
     except ValueError:
         raise ConfigError("%s 는 숫자여야 함: %r" % (key, value)) from None
