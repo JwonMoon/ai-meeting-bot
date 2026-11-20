@@ -70,16 +70,16 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 - 요약: Ollama 봇 전용 컨테이너에서 회의록 형식 출력 확인
 - 연동: 시험 페이지 생성·삭제, 시험 티켓 생성, Teams 메시지 수신 확인
 - 본 구현 1번: 요약·연동 부품을 `src/meetingbot/`으로 정리, 단위 시험 15개
-- 본 구현 2번 (코드만, Thor 미검증): `audio.py`, `stt.py`, `check_stt.py`, `asr_worker.py`.
-  mp3·m4a·wav 입력, 말 없는 구간은 모델에 넣지 않음, 구간당 생성 한도(`STT_MAX_NEW_TOKENS`), 지연 경고와 시간 초과
+- 본 구현 2번: `audio.py`, `stt.py`, `check_stt.py`, `asr_worker.py`.
+  mp3·m4a·wav 입력, 말 없는 구간은 모델에 넣지 않음, 구간당 생성 한도(`STT_MAX_NEW_TOKENS`), 지연 경고와 시간 초과.
+  Thor 확인(2026-11-20): korean.mp3 → 구간 10개, 봇 전용 컨테이너(minhojo 님 이미지)에서 81초에 전사 완료. 품질은 아직 안 봄
 - 본 구현 3번 (코드만, Thor 미검증): `db.py`, `gpu.py`, `pipeline.py`, `jobs.py`.
   실패 단계부터 재시도, Jira 티켓 중복 생성 방지, GPU 사용 중이면 대기. 단위 시험 50개 통과.
   가짜 음성 인식·가짜 Ollama 로 new → approve → publish 흐름 확인
 
 바로 다음:
 1. Thor에서 재확인 (`git pull` 후): 단위 시험, `check_integrations.py`, `check_llm.py`, 요약 직후 모델이 GPU에서 내려갔는지
-2. Thor에서 음성 인식 연결: `.env.example` 의 STT_COMMAND 예시를 `.env` 에 넣고
-   `check_stt.py` 로 확인 (`--plan-only` 는 통과: korean.mp3 가 구간 10개로 나뉨). 구간 수와 느린 구간 보고 `STT_SILENCE_DB` 조정.
+2. Thor에서 전사 품질 확인 (`data/stt-check/korean/transcript.txt`) 과 그 전사로 `check_llm.py`.
    `nvidia-smi --query-compute-apps=pid,process_name --format=csv,noheader` 가 컨테이너 프로세스를 보여 주는지 확인
 3. Thor에서 `jobs.py new <회의 녹음>` 으로 전체 흐름 한 번. 액션아이템 추출 품질 확인
 4. 화면 `web/`: 업로드, 진행 상황, 검토·승인 (FastAPI, Thor 내부에서만 열림, 노트북은 SSH 터널로 접속).
@@ -87,7 +87,6 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 5. 다듬기: 긴 회의 분할 요약, 자동 시작, 보관 기간 지난 녹음 삭제, README
 
 미해결:
-- `asr_worker.py` 를 minhojo 님 이미지로 띄운 컨테이너에서 돌리는 것은 미확인. 첫 실행에서 모델 올리는 시간과 구간당 시간을 기록할 것
 - 모델 가중치를 봇 계정 폴더로 복사해 두면 minhojo 님 폴더 의존이 없어진다 (약 4GB). 동의 받은 뒤 진행
 - 말 없는 구간 판정 기준(`STT_SILENCE_DB=-40`, `STT_MIN_SILENCE_SECONDS=0.7`)은 실제 회의실 녹음으로 맞춰야 함
 - 액션아이템 추출 미검증 (시험 음원이 회의가 아니었음). 실제 회의 녹음으로 확인하기로 함
