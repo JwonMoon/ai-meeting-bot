@@ -50,6 +50,7 @@ class Settings:
     stt_max_new_tokens: int = 400
     stt_chunk_seconds: float = 60.0
     stt_silence_db: float = -40.0
+    stt_skip_silence: bool = True
     stt_min_silence_seconds: float = 0.7
     stt_chunk_timeout_seconds: int = 600
     stt_slow_factor: float = 2.0
@@ -99,6 +100,7 @@ def load_settings(env_path: Optional[Path] = None) -> Settings:
         stt_max_new_tokens=_to_int("STT_MAX_NEW_TOKENS", get("STT_MAX_NEW_TOKENS") or "400"),
         stt_chunk_seconds=_to_float("STT_CHUNK_SECONDS", get("STT_CHUNK_SECONDS") or "60"),
         stt_silence_db=_to_float("STT_SILENCE_DB", get("STT_SILENCE_DB") or "-40"),
+        stt_skip_silence=(get("STT_SKIP_SILENCE") or "1").lower() not in ("0", "no", "false", "off"),
         stt_min_silence_seconds=_to_float("STT_MIN_SILENCE_SECONDS", get("STT_MIN_SILENCE_SECONDS") or "0.7"),
         stt_chunk_timeout_seconds=_to_int("STT_CHUNK_TIMEOUT_SECONDS", get("STT_CHUNK_TIMEOUT_SECONDS") or "600"),
         stt_slow_factor=_to_float("STT_SLOW_FACTOR", get("STT_SLOW_FACTOR") or "2"),

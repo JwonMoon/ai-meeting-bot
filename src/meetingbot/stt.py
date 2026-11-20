@@ -13,7 +13,9 @@
     {max_new_tokens}  STT_MAX_NEW_TOKENS 값. 묶음 하나에서 모델이 만들 수 있는 글자 수 상한
 
 말 없는 구간에서 음성 인식 한 묶음이 약 5분 걸리던 문제에 대한 대비:
-- 말 없는 구간은 아예 모델에 넣지 않는다.
+- 말 없는 구간은 아예 모델에 넣지 않는다. 단, 기준은 녹음의 평균 소리 크기에 맞춰 내리고,
+  말소리 비율이 너무 낮게 나오면 판정을 버리고 전체를 넣는다 (조용한 녹음을 통째로 버리지 않기 위해).
+  STT_SKIP_SILENCE=0 이면 건너뛰기 자체를 끈다.
 - 묶음을 짧게(기본 60초) 잡고, 묶음당 생성 한도를 낮게 둔다.
 - 묶음 처리 시간이 음성 길이의 STT_SLOW_FACTOR 배를 넘으면 경고를 남기고,
   STT_CHUNK_TIMEOUT_SECONDS 를 넘으면 중단한다.
@@ -35,6 +37,11 @@ from .audio import AudioError, Chunk, format_timestamp
 from .config import ConfigError, Settings
 
 log = logging.getLogger(__name__)
+
+# 말 없음 기준을 아무리 내려도 이 아래로는 안 내린다 (dBFS).
+MIN_SILENCE_DB = -70.0
+# 말소리 비율이 이보다 낮으면 말 없는 구간 판정이 틀렸다고 보고 전체를 넣는다.
+MIN_SPEECH_COVERAGE = 0.3
 
 
 class SttError(Exception):
@@ -295,15 +302,40 @@ def prepare(settings: Settings, source: Path, work_dir: Path, progress: Progress
     wav = audio.to_wav(source, work_dir / "audio.wav")
     # 길이는 변환된 wav 로 잰다. mp3 는 파일 머리의 길이 정보가 실제와 조금 다를 수 있다.
     duration = audio.probe_duration(wav)
-    silences = audio.detect_silences(wav, duration, settings.stt_silence_db, settings.stt_min_silence_seconds)
-    chunks = audio.plan_chunks(
-        duration, silences, settings.stt_chunk_seconds, settings.stt_chunk_seconds * 1.5
-    )
-    speech = sum(c.seconds for c in chunks)
+    target = settings.stt_chunk_seconds
+
+    if not settings.stt_skip_silence:
+        chunks = audio.fixed_chunks(duration, target)
+        progress("전체 %s 를 %d개 구간으로 (말 없는 구간 건너뛰기 끔)" % (format_timestamp(duration), len(chunks)))
+        return wav, duration, chunks
+
+    # 조용한 녹음(회의실 구석의 노트북 마이크 등)은 말소리도 기준 아래로 떨어져 통째로 버려질 수 있다.
+    # 그래서 기준을 녹음의 평균 소리 크기보다 10dB 아래까지는 함께 내린다.
+    mean_db, max_db = audio.measure_volume(wav)
+    threshold = settings.stt_silence_db
+    if mean_db is not None:
+        threshold = max(MIN_SILENCE_DB, min(threshold, mean_db - 10.0))
     progress(
-        "말소리 %s / 전체 %s, 구간 %d개 (말 없는 구간 %d곳 제외)"
-        % (format_timestamp(speech), format_timestamp(duration), len(chunks), len(silences))
+        "소리 크기: 평균 %s dB, 최대 %s dB → 말 없음 기준 %.0f dB"
+        % ("%.0f" % mean_db if mean_db is not None else "?", "%.0f" % max_db if max_db is not None else "?", threshold)
     )
+    silences = audio.detect_silences(wav, duration, threshold, settings.stt_min_silence_seconds)
+    chunks = audio.plan_chunks(duration, silences, target, target * 1.5)
+    speech = sum(c.seconds for c in chunks)
+    coverage = speech / duration if duration > 0 else 0.0
+    progress(
+        "말소리 %s / 전체 %s (%.0f%%), 구간 %d개 (말 없는 구간 %d곳 제외)"
+        % (format_timestamp(speech), format_timestamp(duration), coverage * 100, len(chunks), len(silences))
+    )
+    if duration > 60 and coverage < MIN_SPEECH_COVERAGE:
+        # 회의 녹음의 7할 넘게가 "말 없음"일 리는 거의 없다. 판정이 틀렸다고 보고 전부 넣는다.
+        chunks = audio.fixed_chunks(duration, target)
+        log.warning("말소리 비율 %.0f%% 는 너무 낮음. 말 없는 구간 판정을 믿지 않고 전체를 %d개 구간으로 넣음.", coverage * 100, len(chunks))
+        progress(
+            "경고: 말소리 비율이 %.0f%% 뿐이라 말 없는 구간 판정을 버리고 전체 %s 를 %d개 구간으로 넣음. "
+            "녹음이 작게 됐을 수 있음. 계속 그러면 .env 에 STT_SKIP_SILENCE=0."
+            % (coverage * 100, format_timestamp(duration), len(chunks))
+        )
     return wav, duration, chunks
 
 

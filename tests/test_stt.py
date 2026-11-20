@@ -101,6 +101,55 @@ class FfmpegLocationTest(unittest.TestCase):
         self.assertIn("mp3", str(caught.exception))
 
 
+class VolumeAndFallbackTest(unittest.TestCase):
+    def test_parse_volume(self):
+        text = "[Parsed_volumedetect_0 @ 0x1] mean_volume: -27.3 dB\n[Parsed_volumedetect_0 @ 0x1] max_volume: -5.0 dB\n"
+        self.assertEqual(audio.parse_volume(text), (-27.3, -5.0))
+        self.assertEqual(audio.parse_volume("nothing"), (None, None))
+
+    def test_fixed_chunks(self):
+        self.assertEqual([round(c.seconds) for c in audio.fixed_chunks(200.0, 60)], [60, 60, 80])
+        self.assertEqual(audio.fixed_chunks(30.0, 60), [Chunk(0.0, 30.0)])
+        self.assertEqual(audio.fixed_chunks(0.0, 60), [])
+
+    def _prepare(self, settings, mean_db, silences, duration=600.0):
+        notes = []
+        with mock.patch.object(audio, "ensure_ffmpeg"), \
+             mock.patch.object(audio, "to_wav", return_value=Path("/w/audio.wav")), \
+             mock.patch.object(audio, "probe_duration", return_value=duration), \
+             mock.patch.object(audio, "measure_volume", return_value=(mean_db, -3.0)), \
+             mock.patch.object(audio, "detect_silences", return_value=silences) as detect, \
+             mock.patch.object(Path, "is_file", return_value=True), \
+             mock.patch.object(Path, "mkdir"):
+            _, _, chunks = stt.prepare(settings, Path("/in/a.mp3"), Path("/w"), notes.append)
+        return chunks, detect, notes
+
+    def test_quiet_recording_lowers_threshold(self):
+        settings = with_stt(stt_command="x {audio}", stt_silence_db=-40.0)
+        _, detect, _ = self._prepare(settings, mean_db=-55.0, silences=[])
+        self.assertEqual(detect.call_args[0][2], -65.0)  # 평균 -55 보다 10 아래
+        _, detect, _ = self._prepare(settings, mean_db=-20.0, silences=[])
+        self.assertEqual(detect.call_args[0][2], -40.0)  # 시끄러우면 설정값 그대로
+
+    def test_low_speech_coverage_falls_back_to_whole_file(self):
+        settings = with_stt(stt_command="x {audio}")
+        chunks, _, notes = self._prepare(settings, mean_db=-30.0, silences=[(30.0, 600.0)])
+        self.assertAlmostEqual(sum(c.seconds for c in chunks), 600.0)
+        self.assertTrue(any("경고" in n for n in notes))
+
+    def test_normal_coverage_keeps_silence_skipping(self):
+        settings = with_stt(stt_command="x {audio}")
+        chunks, _, notes = self._prepare(settings, mean_db=-30.0, silences=[(100.0, 130.0)])
+        self.assertAlmostEqual(sum(c.seconds for c in chunks), 570.4, places=1)
+        self.assertFalse(any("경고" in n for n in notes))
+
+    def test_skip_silence_off(self):
+        settings = with_stt(stt_command="x {audio}", stt_skip_silence=False)
+        chunks, detect, _ = self._prepare(settings, mean_db=-30.0, silences=[(100.0, 130.0)])
+        detect.assert_not_called()
+        self.assertEqual(len(chunks), 10)
+
+
 class CommandTest(unittest.TestCase):
     def test_per_file_command_substitutes_placeholders(self):
         settings = with_stt(stt_command="docker exec box python3 /w/t.py --lang {language} --max {max_new_tokens} {audio}", stt_language="Korean")

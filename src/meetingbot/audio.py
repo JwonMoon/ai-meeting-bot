@@ -9,6 +9,7 @@ ffmpeg 를 따로 두고 .env 의 FFMPEG_DIR 로 그 폴더를 가리킨다. 비
 - ffprobe -show_entries, -of: https://ffmpeg.org/ffprobe.html
 - 변환 옵션 -ac, -ar, -c:a, -ss, -t: https://ffmpeg.org/ffmpeg.html
 - silencedetect 필터 출력 형식: https://ffmpeg.org/ffmpeg-filters.html#silencedetect
+- volumedetect 필터 출력 형식: https://ffmpeg.org/ffmpeg-filters.html#volumedetect
 """
 
 import re
@@ -181,6 +182,41 @@ def detect_silences(wav: Path, duration: float, noise_db: float, min_seconds: fl
     if done.returncode != 0:
         raise AudioError("말 없는 구간 찾기 실패: %s" % done.stderr.strip()[-300:])
     return parse_silences(done.stderr, duration)
+
+
+_MEAN_VOLUME = re.compile(r"mean_volume:\s*(-?[0-9.]+)\s*dB")
+_MAX_VOLUME = re.compile(r"max_volume:\s*(-?[0-9.]+)\s*dB")
+
+
+def parse_volume(ffmpeg_stderr: str) -> Tuple[Optional[float], Optional[float]]:
+    """volumedetect 출력에서 (평균 dB, 최대 dB)."""
+    mean = _MEAN_VOLUME.search(ffmpeg_stderr)
+    peak = _MAX_VOLUME.search(ffmpeg_stderr)
+    return (float(mean.group(1)) if mean else None, float(peak.group(1)) if peak else None)
+
+
+def measure_volume(wav: Path) -> Tuple[Optional[float], Optional[float]]:
+    """녹음 전체의 (평균 소리 크기 dB, 최대 dB). 조용한 녹음인지 판단하는 데 쓴다."""
+    done = _run(
+        [tool("ffmpeg"), "-nostdin", "-hide_banner", "-nostats", "-i", str(wav), "-af", "volumedetect", "-f", "null", "-"],
+        "소리 크기 재기",
+    )
+    if done.returncode != 0:
+        return None, None
+    return parse_volume(done.stderr)
+
+
+def fixed_chunks(duration: float, target_seconds: float) -> List[Chunk]:
+    """말 없는 구간을 가리지 않고 처음부터 끝까지 target 초씩 자른다. 마지막 토막이 짧으면 앞 토막에 붙인다."""
+    if duration <= 0:
+        return []
+    chunks: List[Chunk] = []
+    pos = 0.0
+    while duration - pos > target_seconds * 1.5:
+        chunks.append(Chunk(pos, pos + target_seconds))
+        pos += target_seconds
+    chunks.append(Chunk(pos, duration))
+    return chunks
 
 
 def speech_regions(duration: float, silences: Sequence[Tuple[float, float]], pad: float) -> List[Tuple[float, float]]:
