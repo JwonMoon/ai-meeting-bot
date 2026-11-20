@@ -69,6 +69,18 @@ def explain_failure(status: int, text: str) -> None:
     print("  응답 앞부분: " + text[:600].replace("\n", " "))
 
 
+def ask_yes(prompt: str) -> bool:
+    """Y/n 질문. 그냥 Enter 는 Y 로 본다.
+
+    한글 입력 상태에서 글자를 지우면 터미널이 깨진 바이트를 보낼 수 있다.
+    그래도 죽지 않도록 바이트로 읽어서 해석한다. 한글 상태의 Y, N 키(ㅛ, ㅜ)도 받는다.
+    """
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+    answer = sys.stdin.buffer.readline().decode("utf-8", errors="ignore").strip().lower()
+    return answer in ("", "y", "yes", "ㅛ")
+
+
 def check_confluence(settings: Settings, stamp: str) -> bool:
     print("\n[Confluence] 시험 페이지 생성")
     settings.require(
@@ -102,8 +114,7 @@ def check_confluence(settings: Settings, stamp: str) -> bool:
     print("  성공: 페이지 ID %s" % page_id)
     print("  주소: %s" % (web_url or "(응답에 주소 없음. 상위 페이지 아래에서 직접 확인)"))
 
-    answer = input("  브라우저에서 확인한 뒤, 이 시험 페이지를 지울까요? [Y/n] ").strip().lower()
-    if answer in ("", "y", "yes"):
+    if ask_yes("  브라우저에서 확인한 뒤, 이 시험 페이지를 지울까요? [Y/n] "):
         status, text = call("DELETE", url + str(page_id), settings.confluence_token)
         if status == 204:
             print("  삭제됨.")
