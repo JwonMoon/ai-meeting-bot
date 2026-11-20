@@ -88,11 +88,11 @@ try:
     from fastapi.testclient import TestClient
 
     from meetingbot.web.app import create_app
-except ImportError:  # 화면 의존성이 없는 컴퓨터에서는 아래 시험을 건너뛴다
+except (ImportError, RuntimeError):  # fastapi 나 httpx(시험용) 가 없는 컴퓨터에서는 아래 시험을 건너뛴다
     TestClient = None
 
 
-@unittest.skipIf(TestClient is None, "fastapi 미설치")
+@unittest.skipIf(TestClient is None, "fastapi 또는 httpx 미설치")
 class AppTest(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
