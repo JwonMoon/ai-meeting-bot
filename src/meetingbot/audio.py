@@ -1,7 +1,9 @@
 """음성 파일 준비: 형식 변환, 길이 조회, 말 없는 구간 찾기, 구간 나누기.
 
-모두 ffmpeg/ffprobe 를 불러 쓴다 (Thor 에 설치돼 있어야 함: `ffmpeg -version`).
-파이썬 쪽에는 추가 설치가 없다.
+모두 ffmpeg/ffprobe 를 불러 쓴다. 파이썬 쪽에는 추가 설치가 없다.
+
+Thor 의 /usr/bin/ffmpeg 는 mp3 해독 부품이 빠진 빌드라서(공용 장비, 고치지 않음) 봇 계정 전용
+ffmpeg 를 따로 두고 .env 의 FFMPEG_DIR 로 그 폴더를 가리킨다. 비우면 PATH 에서 찾는다.
 
 명령 형식의 근거 (공식 문서):
 - ffprobe -show_entries, -of: https://ffmpeg.org/ffprobe.html
@@ -27,6 +29,20 @@ class AudioError(Exception):
     pass
 
 
+# FFMPEG_DIR 설정. configure() 로 한 번 정해 두면 이후 호출이 모두 그 폴더의 ffmpeg 를 쓴다.
+_tool_dir = ""
+
+
+def configure(ffmpeg_dir: str) -> None:
+    global _tool_dir
+    _tool_dir = ffmpeg_dir.rstrip("/")
+
+
+def tool(name: str) -> str:
+    """ffmpeg 또는 ffprobe 의 실행 경로."""
+    return "%s/%s" % (_tool_dir, name) if _tool_dir else name
+
+
 @dataclass(frozen=True)
 class Chunk:
     """원본 기준 시작·끝(초). 음성 인식에 넣을 한 구간."""
@@ -40,10 +56,16 @@ class Chunk:
 
 
 def ensure_ffmpeg() -> None:
-    missing = [name for name in ("ffmpeg", "ffprobe") if shutil.which(name) is None]
+    missing = [name for name in ("ffmpeg", "ffprobe") if shutil.which(tool(name)) is None]
     if missing:
+        where = "FFMPEG_DIR=%s 안" % _tool_dir if _tool_dir else "PATH"
+        raise AudioError("%s 가 %s에 없음. .env 의 FFMPEG_DIR 를 확인할 것." % (", ".join(missing), where))
+    # mp3 를 못 읽는 ffmpeg 빌드가 있다. 미리 걸러서 변환 단계의 알 수 없는 오류를 막는다.
+    done = _run([tool("ffmpeg"), "-hide_banner", "-decoders"], "ffmpeg 기능 확인", timeout=30)
+    if done.returncode == 0 and not any(" mp3" in line for line in done.stdout.splitlines()):
         raise AudioError(
-            "%s 가 없음. Thor 에서 설치: sudo apt install ffmpeg" % ", ".join(missing)
+            "%s 는 mp3 를 읽지 못하는 ffmpeg 임. 봇 전용 ffmpeg 를 설치하고 .env 의 FFMPEG_DIR 로 지정할 것."
+            % shutil.which(tool("ffmpeg"))
         )
 
 
@@ -69,7 +91,7 @@ def probe_duration(path: Path) -> float:
     """파일 길이(초)."""
     done = _run(
         [
-            "ffprobe", "-v", "error",
+            tool("ffprobe"), "-v", "error",
             "-show_entries", "format=duration",
             "-of", "default=noprint_wrappers=1:nokey=1",
             str(path),
@@ -90,7 +112,7 @@ def to_wav(source: Path, target: Path) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     done = _run(
         [
-            "ffmpeg", "-y", "-nostdin", "-v", "error",
+            tool("ffmpeg"), "-y", "-nostdin", "-v", "error",
             "-i", str(source),
             "-vn", "-ac", "1", "-ar", str(SAMPLE_RATE), "-c:a", "pcm_s16le",
             str(target),
@@ -106,7 +128,7 @@ def cut(source_wav: Path, chunk: Chunk, target: Path) -> Path:
     """wav 에서 한 구간을 잘라 파일로 저장한다."""
     done = _run(
         [
-            "ffmpeg", "-y", "-nostdin", "-v", "error",
+            tool("ffmpeg"), "-y", "-nostdin", "-v", "error",
             "-i", str(source_wav),
             "-ss", "%.3f" % chunk.start, "-t", "%.3f" % chunk.seconds,
             "-c:a", "pcm_s16le",
@@ -149,7 +171,7 @@ def detect_silences(wav: Path, duration: float, noise_db: float, min_seconds: fl
     """noise_db(dB) 보다 작은 소리가 min_seconds 이상 이어지는 구간을 찾는다."""
     done = _run(
         [
-            "ffmpeg", "-nostdin", "-hide_banner", "-nostats",
+            tool("ffmpeg"), "-nostdin", "-hide_banner", "-nostats",
             "-i", str(wav),
             "-af", "silencedetect=noise=%sdB:d=%s" % (noise_db, min_seconds),
             "-f", "null", "-",

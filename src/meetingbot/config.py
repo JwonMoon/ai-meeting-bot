@@ -55,6 +55,8 @@ class Settings:
     stt_slow_factor: float = 2.0
     # 작업 기록과 녹음 파일을 두는 폴더
     data_dir: str = ""
+    # ffmpeg, ffprobe 가 있는 폴더. 비우면 PATH 에서 찾는다.
+    ffmpeg_dir: str = ""
     # 공용 GPU 양보 (gpu.py 설명 참고)
     gpu_busy_utilization: int = 20
     gpu_wait_minutes: int = 30
@@ -97,6 +99,7 @@ def load_settings(env_path: Optional[Path] = None) -> Settings:
         stt_chunk_timeout_seconds=_to_int("STT_CHUNK_TIMEOUT_SECONDS", get("STT_CHUNK_TIMEOUT_SECONDS") or "600"),
         stt_slow_factor=_to_float("STT_SLOW_FACTOR", get("STT_SLOW_FACTOR") or "2"),
         data_dir=get("DATA_DIR") or str(REPO_ROOT / "data"),
+        ffmpeg_dir=get("FFMPEG_DIR").rstrip("/"),
         gpu_busy_utilization=_to_int("GPU_BUSY_UTILIZATION", get("GPU_BUSY_UTILIZATION") or "20"),
         gpu_wait_minutes=_to_int("GPU_WAIT_MINUTES", get("GPU_WAIT_MINUTES") or "30"),
         gpu_poll_seconds=_to_int("GPU_POLL_SECONDS", get("GPU_POLL_SECONDS") or "30"),

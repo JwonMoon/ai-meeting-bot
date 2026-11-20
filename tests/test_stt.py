@@ -76,6 +76,31 @@ class ChunkPlanningTest(unittest.TestCase):
         self.assertEqual(audio.format_timestamp(3725.9), "01:02:05")
 
 
+class FfmpegLocationTest(unittest.TestCase):
+    def tearDown(self):
+        audio.configure("")
+
+    def test_tool_uses_configured_dir(self):
+        audio.configure("/opt/ff/")
+        self.assertEqual(audio.tool("ffmpeg"), "/opt/ff/ffmpeg")
+        audio.configure("")
+        self.assertEqual(audio.tool("ffprobe"), "ffprobe")
+
+    def test_missing_tools_mention_setting(self):
+        audio.configure("/nowhere")
+        with self.assertRaises(audio.AudioError) as caught:
+            audio.ensure_ffmpeg()
+        self.assertIn("FFMPEG_DIR", str(caught.exception))
+
+    def test_ffmpeg_without_mp3_is_rejected(self):
+        fake = mock.Mock(returncode=0, stdout=" A..... aac  AAC\n A..... flac FLAC\n")
+        with mock.patch.object(audio.shutil, "which", return_value="/usr/bin/ffmpeg"), \
+             mock.patch.object(audio, "_run", return_value=fake):
+            with self.assertRaises(audio.AudioError) as caught:
+                audio.ensure_ffmpeg()
+        self.assertIn("mp3", str(caught.exception))
+
+
 class CommandTest(unittest.TestCase):
     def test_per_file_command_substitutes_placeholders(self):
         settings = with_stt(stt_command="docker exec box python3 /w/t.py --lang {language} --max {max_new_tokens} {audio}", stt_language="Korean")

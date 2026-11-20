@@ -80,6 +80,7 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 5. 다듬기: 긴 회의 분할 요약, 자동 시작, 보관 기간 지난 녹음 삭제, README
 
 미해결:
+- Thor 의 `/usr/bin/ffmpeg` 는 mp3 해독 부품이 없는 빌드 (공용이라 안 고침). 봇 계정 전용 ffmpeg 를 두고 `.env` 의 `FFMPEG_DIR` 로 지정. 설치 방법은 정해지는 대로 여기에 적기
 - 음성 인식 명령(`STT_COMMAND`)은 환경값. 기존 스크립트가 파일 하나를 받고 글을 표준 출력에 찍는다고 가정. 다르면 `stt.parse_text_output` 조정
 - `asr_worker.py` 는 봇 전용 컨테이너(qwen-asr 설치) 용. Jetson 에서 설치·실행 미확인
 - 말 없는 구간 판정 기준(`STT_SILENCE_DB=-40`, `STT_MIN_SILENCE_SECONDS=0.7`)은 실제 회의실 녹음으로 맞춰야 함

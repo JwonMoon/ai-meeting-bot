@@ -283,6 +283,7 @@ Progress = Callable[[str], None]
 
 def prepare(settings: Settings, source: Path, work_dir: Path, progress: Progress = log.info) -> Tuple[Path, float, List[Chunk]]:
     """wav 변환과 구간 계획까지. (wav 경로, 전체 길이, 구간 목록)."""
+    audio.configure(settings.ffmpeg_dir)
     audio.ensure_ffmpeg()
     if not source.is_file():
         raise SttError("녹음 파일이 없음: %s" % source)
