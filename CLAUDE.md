@@ -17,11 +17,11 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 
 - 코드는 Thor(Jetson AGX Thor, Ubuntu, Python 3.12)의 봇 전용 계정에서 돈다. 개발은 다른 컴퓨터에서 하고 git으로 옮긴다.
 - **Claude는 Thor에 접속할 수 없다.** Thor에서 실행할 명령은 사용자에게 안내하고, 사용자가 붙여 준 출력을 해석한다.
-- 음성 인식: Qwen3-ASR 1.7B. 다른 사용자(minhojo)의 Docker 컨테이너 `minho_qwen_asr` 를 허락받아 쓰는 중이다. 원본 스크립트와 폴더는 고치지 않는다.
+- 음성 인식: Qwen3-ASR 1.7B. 다른 사용자(minhojo)의 Docker 컨테이너 `minhojo_qwen_asr` 를 허락받아 쓰는 중이다. 원본 스크립트와 폴더는 고치지 않는다.
   - 그 컨테이너는 `/home/minhojo/work` 만 `/workspace` 로 본다. 스크립트 `extract_subtitles.py` 는 폴더 단위로 동영상(mp4 등)을 받아 `.txt` 로 저장하며,
     qwen-asr 의 `split_audio_into_chunks`(60초)와 `max_new_tokens=4096` 을 쓴다. 이 4096 이 말 없는 구간에서 5분씩 걸린 원인으로 보인다.
   - 모델 가중치는 이미지 안이 아니라 `/home/minhojo/work/models/Qwen3-ASR-1.7B` (호스트 폴더)에 있다.
-  - 봇은 그 컨테이너를 직접 쓰지 않고, 같은 이미지 `minho_qwen_asr:backup-20261111` 로 봇 전용 컨테이너를 매번 새로 띄워
+  - 봇은 그 컨테이너를 직접 쓰지 않고, 같은 이미지 `minhojo_qwen_asr:backup-20261111` 로 봇 전용 컨테이너를 매번 새로 띄워
     `scripts/asr_worker.py` 를 돌린다 (`.env.example` 의 STT_COMMAND). 모델 폴더는 읽기 전용 마운트. minhojo 님 동의 필요.
 - 요약: Ollama, 봇 전용 컨테이너(포트 11435, Thor 자신만 접속 가능). 다른 사용자의 Ollama(11434)는 쓰지 않는다.
 - Confluence와 Jira는 사내 설치형(Server/Data Center)이다. Cloud API가 아니다. 인증은 Personal Access Token을 Bearer 헤더로 보낸다.

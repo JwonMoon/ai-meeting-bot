@@ -5,7 +5,7 @@
 넘겨받은 파일을 차례로 처리하므로 stt.py 의 {audios} 방식과 짝을 이룬다.
 Thor 호스트 쪽(stt.py)은 이 파일을 import 하지 않는다. torch 가 없어도 된다.
 
-Thor 에서는 minhojo 님 컨테이너의 이미지(minho_qwen_asr:backup-20261111, qwen-asr·torch·ffmpeg 포함)로
+Thor 에서는 minhojo 님 컨테이너의 이미지(minhojo_qwen_asr:backup-20261111, qwen-asr·torch·ffmpeg 포함)로
 봇 전용 컨테이너를 매번 새로 띄워 이 파일을 돌린다. 모델 가중치는 이미지 안이 아니라 호스트 폴더에
 있어 읽기 전용으로 마운트한다. 실행 명령은 .env 의 STT_COMMAND (.env.example 참고).
 
