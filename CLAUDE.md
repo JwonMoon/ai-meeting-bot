@@ -20,6 +20,8 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 - 음성 인식: Qwen3-ASR 1.7B. 다른 사용자의 Docker 컨테이너를 허락받아 쓰는 중이다. 원본 스크립트와 폴더는 고치지 않는다.
 - 요약: Ollama, 봇 전용 컨테이너(포트 11435, Thor 자신만 접속 가능). 다른 사용자의 Ollama(11434)는 쓰지 않는다.
 - Confluence와 Jira는 사내 설치형(Server/Data Center)이다. Cloud API가 아니다. 인증은 Personal Access Token을 Bearer 헤더로 보낸다.
+- ffmpeg: Thor 의 `/usr/bin/ffmpeg` 는 mp3 해독 부품이 없는 빌드다 (공용이라 안 고침). 봇 계정 홈 `~/ffmpeg` 에
+  johnvansickle.com 의 arm64 정적 빌드를 풀어 두고 `.env` 의 `FFMPEG_DIR` 로 가리킨다. 2026-11-20 확인.
 - 주소, 계정, 페이지 ID 같은 환경 값은 저장소에 적지 않는다. Thor의 `.env`와, 있으면 `CLAUDE.local.md`(git 제외)를 본다. 없으면 사용자에게 묻는다.
 
 ## 코드 구조
@@ -72,7 +74,7 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 바로 다음:
 1. Thor에서 재확인 (`git pull` 후): 단위 시험, `check_integrations.py`, `check_llm.py`, 요약 직후 모델이 GPU에서 내려갔는지
 2. Thor에서 음성 인식 연결: 기존 스크립트 실행 방법을 `.env` 의 `STT_COMMAND` 로 적고
-   `check_stt.py --plan-only` → `check_stt.py` 로 확인. 구간 수와 느린 구간 보고 `STT_SILENCE_DB` 조정.
+   `check_stt.py` 로 확인 (`--plan-only` 는 통과: korean.mp3 가 구간 10개로 나뉨). 구간 수와 느린 구간 보고 `STT_SILENCE_DB` 조정.
    `nvidia-smi --query-compute-apps=pid,process_name --format=csv,noheader` 가 컨테이너 프로세스를 보여 주는지 확인
 3. Thor에서 `jobs.py new <회의 녹음>` 으로 전체 흐름 한 번. 액션아이템 추출 품질 확인
 4. 화면 `web/`: 업로드, 진행 상황, 검토·승인 (FastAPI, Thor 내부에서만 열림, 노트북은 SSH 터널로 접속).
@@ -80,7 +82,6 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 5. 다듬기: 긴 회의 분할 요약, 자동 시작, 보관 기간 지난 녹음 삭제, README
 
 미해결:
-- Thor 의 `/usr/bin/ffmpeg` 는 mp3 해독 부품이 없는 빌드 (공용이라 안 고침). 봇 계정 전용 ffmpeg 를 두고 `.env` 의 `FFMPEG_DIR` 로 지정. 설치 방법은 정해지는 대로 여기에 적기
 - 음성 인식 명령(`STT_COMMAND`)은 환경값. 기존 스크립트가 파일 하나를 받고 글을 표준 출력에 찍는다고 가정. 다르면 `stt.parse_text_output` 조정
 - `asr_worker.py` 는 봇 전용 컨테이너(qwen-asr 설치) 용. Jetson 에서 설치·실행 미확인
 - 말 없는 구간 판정 기준(`STT_SILENCE_DB=-40`, `STT_MIN_SILENCE_SECONDS=0.7`)은 실제 회의실 녹음으로 맞춰야 함
