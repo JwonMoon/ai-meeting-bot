@@ -17,7 +17,12 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 
 - 코드는 Thor(Jetson AGX Thor, Ubuntu, Python 3.12)의 봇 전용 계정에서 돈다. 개발은 다른 컴퓨터에서 하고 git으로 옮긴다.
 - **Claude는 Thor에 접속할 수 없다.** Thor에서 실행할 명령은 사용자에게 안내하고, 사용자가 붙여 준 출력을 해석한다.
-- 음성 인식: Qwen3-ASR 1.7B. 다른 사용자의 Docker 컨테이너를 허락받아 쓰는 중이다. 원본 스크립트와 폴더는 고치지 않는다.
+- 음성 인식: Qwen3-ASR 1.7B. 다른 사용자(minhojo)의 Docker 컨테이너 `minho_qwen_asr` 를 허락받아 쓰는 중이다. 원본 스크립트와 폴더는 고치지 않는다.
+  - 그 컨테이너는 `/home/minhojo/work` 만 `/workspace` 로 본다. 스크립트 `extract_subtitles.py` 는 폴더 단위로 동영상(mp4 등)을 받아 `.txt` 로 저장하며,
+    qwen-asr 의 `split_audio_into_chunks`(60초)와 `max_new_tokens=4096` 을 쓴다. 이 4096 이 말 없는 구간에서 5분씩 걸린 원인으로 보인다.
+  - 모델 가중치는 이미지 안이 아니라 `/home/minhojo/work/models/Qwen3-ASR-1.7B` (호스트 폴더)에 있다.
+  - 봇은 그 컨테이너를 직접 쓰지 않고, 같은 이미지 `minho_qwen_asr:backup-20261111` 로 봇 전용 컨테이너를 매번 새로 띄워
+    `scripts/asr_worker.py` 를 돌린다 (`.env.example` 의 STT_COMMAND). 모델 폴더는 읽기 전용 마운트. minhojo 님 동의 필요.
 - 요약: Ollama, 봇 전용 컨테이너(포트 11435, Thor 자신만 접속 가능). 다른 사용자의 Ollama(11434)는 쓰지 않는다.
 - Confluence와 Jira는 사내 설치형(Server/Data Center)이다. Cloud API가 아니다. 인증은 Personal Access Token을 Bearer 헤더로 보낸다.
 - ffmpeg: Thor 의 `/usr/bin/ffmpeg` 는 mp3 해독 부품이 없는 빌드다 (공용이라 안 고침). 봇 계정 홈 `~/ffmpeg` 에
@@ -73,7 +78,7 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 
 바로 다음:
 1. Thor에서 재확인 (`git pull` 후): 단위 시험, `check_integrations.py`, `check_llm.py`, 요약 직후 모델이 GPU에서 내려갔는지
-2. Thor에서 음성 인식 연결: 기존 스크립트 실행 방법을 `.env` 의 `STT_COMMAND` 로 적고
+2. Thor에서 음성 인식 연결: `.env.example` 의 STT_COMMAND 예시를 `.env` 에 넣고
    `check_stt.py` 로 확인 (`--plan-only` 는 통과: korean.mp3 가 구간 10개로 나뉨). 구간 수와 느린 구간 보고 `STT_SILENCE_DB` 조정.
    `nvidia-smi --query-compute-apps=pid,process_name --format=csv,noheader` 가 컨테이너 프로세스를 보여 주는지 확인
 3. Thor에서 `jobs.py new <회의 녹음>` 으로 전체 흐름 한 번. 액션아이템 추출 품질 확인
@@ -82,8 +87,8 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 5. 다듬기: 긴 회의 분할 요약, 자동 시작, 보관 기간 지난 녹음 삭제, README
 
 미해결:
-- 음성 인식 명령(`STT_COMMAND`)은 환경값. 기존 스크립트가 파일 하나를 받고 글을 표준 출력에 찍는다고 가정. 다르면 `stt.parse_text_output` 조정
-- `asr_worker.py` 는 봇 전용 컨테이너(qwen-asr 설치) 용. Jetson 에서 설치·실행 미확인
+- `asr_worker.py` 를 minhojo 님 이미지로 띄운 컨테이너에서 돌리는 것은 미확인. 첫 실행에서 모델 올리는 시간과 구간당 시간을 기록할 것
+- 모델 가중치를 봇 계정 폴더로 복사해 두면 minhojo 님 폴더 의존이 없어진다 (약 4GB). 동의 받은 뒤 진행
 - 말 없는 구간 판정 기준(`STT_SILENCE_DB=-40`, `STT_MIN_SILENCE_SECONDS=0.7`)은 실제 회의실 녹음으로 맞춰야 함
 - 액션아이템 추출 미검증 (시험 음원이 회의가 아니었음). 실제 회의 녹음으로 확인하기로 함
 - 실제 회의실 녹음(노트북 마이크, 여러 명) 품질 미검증

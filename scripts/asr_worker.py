@@ -5,6 +5,14 @@
 넘겨받은 파일을 차례로 처리하므로 stt.py 의 {audios} 방식과 짝을 이룬다.
 Thor 호스트 쪽(stt.py)은 이 파일을 import 하지 않는다. torch 가 없어도 된다.
 
+Thor 에서는 minhojo 님 컨테이너의 이미지(minho_qwen_asr:backup-20261111, qwen-asr·torch·ffmpeg 포함)로
+봇 전용 컨테이너를 매번 새로 띄워 이 파일을 돌린다. 모델 가중치는 이미지 안이 아니라 호스트 폴더에
+있어 읽기 전용으로 마운트한다. 실행 명령은 .env 의 STT_COMMAND (.env.example 참고).
+
+minhojo 님의 extract_subtitles.py 와 다른 점: 묶음당 생성 한도를 4096 이 아니라 --max-new-tokens(기본 400) 로
+낮춘다. 말 없는 구간에서 모델이 한도까지 지어내며 5분씩 끌던 문제를 막기 위해서다. 구간 나누기는
+호스트(audio.py)가 말 없는 곳에서만 끊어 이미 해 두었으므로 여기서는 파일 하나를 통째로 넣는다.
+
 사용법 (컨테이너 안에서):
     python3 asr_worker.py --language Korean --max-new-tokens 400 /data/.../001.wav /data/.../002.wav
 
@@ -33,7 +41,7 @@ def log(message: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Qwen3-ASR 로 wav 파일들을 전사")
     parser.add_argument("files", nargs="+", help="wav 파일 경로들 (컨테이너 안에서 보이는 경로)")
-    parser.add_argument("--model", default="Qwen/Qwen3-ASR-1.7B", help="모델 이름 또는 받아 둔 폴더")
+    parser.add_argument("--model", default="Qwen/Qwen3-ASR-1.7B", help="모델 이름 또는 받아 둔 폴더 (Thor: /models/Qwen3-ASR-1.7B 로 마운트)")
     parser.add_argument("--language", default="", help="언어 강제 (Korean, English). 비우면 자동")
     parser.add_argument("--max-new-tokens", type=int, default=400, help="파일 하나당 생성 토큰 상한")
     parser.add_argument("--device", default="cuda:0")
@@ -46,11 +54,16 @@ def main() -> int:
         log("qwen-asr 또는 torch 가 없음: %s. 컨테이너 안에서 `pip install -U qwen-asr`" % error)
         return 2
 
+    if not torch.cuda.is_available():
+        log("CUDA 를 쓸 수 없음. docker run 에 --gpus all 이 있는지 확인.")
+        return 2
+    # bf16 을 못 쓰는 GPU 면 fp16. (minhojo 님 스크립트와 같은 처리)
+    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     started = time.monotonic()
-    log("모델 올리는 중: %s" % args.model)
+    log("모델 올리는 중: %s (GPU %s, %s)" % (args.model, torch.cuda.get_device_name(0), dtype))
     model = Qwen3ASRModel.from_pretrained(
         args.model,
-        dtype=torch.bfloat16,
+        dtype=dtype,
         device_map=args.device,
         max_inference_batch_size=1,  # 공용 GPU 라 메모리를 적게 쓴다
         max_new_tokens=args.max_new_tokens,
