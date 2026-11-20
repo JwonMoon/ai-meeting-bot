@@ -86,6 +86,14 @@ def call(method: str, url: str, body: Optional[Dict[str, Any]], timeout: int) ->
         return json.loads(response.read().decode("utf-8"))
 
 
+def _seconds(nanoseconds: Any) -> Optional[float]:
+    return nanoseconds / 1e9 if isinstance(nanoseconds, (int, float)) else None
+
+
+def _fmt(seconds: Optional[float]) -> str:
+    return "%.1f초" % seconds if seconds is not None else "(정보 없음)"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="로컬 LLM으로 회의록 JSON 생성 점검")
     parser.add_argument("transcript", type=Path, help="전사 텍스트 파일 (.txt)")
@@ -157,6 +165,16 @@ def main() -> int:
         "완료: %.1f초 | 입력 %s 토큰 | 출력 %s 토큰 | 종료 사유 %s"
         % (elapsed, prompt_tokens, output_tokens, reply.get("done_reason"))
     )
+    # 어디서 시간이 걸렸는지 나눠 본다. Ollama 는 시간을 나노초로 돌려준다.
+    load = _seconds(reply.get("load_duration"))
+    read = _seconds(reply.get("prompt_eval_duration"))
+    write = _seconds(reply.get("eval_duration"))
+    print(
+        "시간 내역: 모델 올리기 %s | 전사 읽기 %s | 회의록 쓰기 %s"
+        % (_fmt(load), _fmt(read), _fmt(write))
+    )
+    if write and isinstance(output_tokens, int):
+        print("쓰기 속도: 초당 %.1f 토큰" % (output_tokens / write))
     if isinstance(prompt_tokens, int) and prompt_tokens >= settings.ollama_num_ctx * 0.95:
         print(
             "경고: 입력이 한도(OLLAMA_NUM_CTX=%d)에 닿음. 전사 일부가 잘렸을 수 있음. 값을 늘려 재시도."
