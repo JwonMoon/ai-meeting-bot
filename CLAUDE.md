@@ -79,8 +79,7 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 
 바로 다음:
 1. Thor에서 재확인 (`git pull` 후): 단위 시험, `check_integrations.py`, `check_llm.py`, 요약 직후 모델이 GPU에서 내려갔는지
-2. Thor에서 전사 품질 확인 (`data/stt-check/korean/transcript.txt`) 과 그 전사로 `check_llm.py`.
-   `nvidia-smi --query-compute-apps=pid,process_name --format=csv,noheader` 가 컨테이너 프로세스를 보여 주는지 확인
+2. (완료) 전사 품질과 `check_llm.py` 확인. `nvidia-smi --query-compute-apps` 가 컨테이너 안 프로세스(`python3`)도 보여 줌 → GPU 양보 판단 가능
 3. Thor에서 `jobs.py new <회의 녹음>` 으로 전체 흐름 한 번. 액션아이템 추출 품질 확인
 4. 화면 `web/`: 업로드, 진행 상황, 검토·승인 (FastAPI, Thor 내부에서만 열림, 노트북은 SSH 터널로 접속).
    `pipeline.py` 의 `new_job`, `run_to_review`, `approve`, `publish` 를 그대로 부른다. 첫 외부 의존성 설치
@@ -93,7 +92,6 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 - 실제 회의실 녹음(노트북 마이크, 여러 명) 품질 미검증
 - 1시간 회의는 요약 입력 한도(`OLLAMA_NUM_CTX`)에 닿을 것으로 추정. 분할 요약 필요 (`pipeline._summarize` 에서 처리)
 - Jira 담당자·기한 전용 칸의 입력 형식 미확인. 지금은 티켓 설명에 글로 적음. 이름 → Jira 계정 대응표 없음
-- GPU 양보는 사용률과 프로세스 목록만 본다. 컨테이너 안 프로세스가 목록에 안 보이면 사용률만으로 판단하게 됨
 - 음성 인식을 남의 컨테이너에서 돌리는 중. 봇 전용 컨테이너로 분리 필요
 - 이 저장소가 공개 상태로 보임. 비공개 전환 시 Thor에 읽기 전용 deploy key 필요
 - 개인 토큰은 시험용. 팀 운영 전 봇 전용 계정 토큰으로 교체
