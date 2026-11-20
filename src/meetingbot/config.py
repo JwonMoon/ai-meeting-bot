@@ -57,6 +57,10 @@ class Settings:
     data_dir: str = ""
     # ffmpeg, ffprobe 가 있는 폴더. 비우면 PATH 에서 찾는다.
     ffmpeg_dir: str = ""
+    # 화면 (web/). Thor 안에서만 듣는다.
+    web_host: str = "127.0.0.1"
+    web_port: int = 8000
+    max_upload_mb: int = 500
     # 공용 GPU 양보 (gpu.py 설명 참고)
     gpu_busy_utilization: int = 20
     gpu_wait_minutes: int = 30
@@ -100,6 +104,9 @@ def load_settings(env_path: Optional[Path] = None) -> Settings:
         stt_slow_factor=_to_float("STT_SLOW_FACTOR", get("STT_SLOW_FACTOR") or "2"),
         data_dir=get("DATA_DIR") or str(REPO_ROOT / "data"),
         ffmpeg_dir=get("FFMPEG_DIR").rstrip("/"),
+        web_host=get("WEB_HOST") or "127.0.0.1",
+        web_port=_to_int("WEB_PORT", get("WEB_PORT") or "8000"),
+        max_upload_mb=_to_int("MAX_UPLOAD_MB", get("MAX_UPLOAD_MB") or "500"),
         gpu_busy_utilization=_to_int("GPU_BUSY_UTILIZATION", get("GPU_BUSY_UTILIZATION") or "20"),
         gpu_wait_minutes=_to_int("GPU_WAIT_MINUTES", get("GPU_WAIT_MINUTES") or "30"),
         gpu_poll_seconds=_to_int("GPU_POLL_SECONDS", get("GPU_POLL_SECONDS") or "30"),

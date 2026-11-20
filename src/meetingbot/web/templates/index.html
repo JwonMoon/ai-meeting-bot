@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block subtitle %}녹음 하나로 회의록, Confluence, Jira, Teams 까지{% endblock %}
+{% block content %}
+<h1>녹음 올리기</h1>
+<form class="box" method="post" action="/jobs" enctype="multipart/form-data">
+  <div class="row">
+    <input type="file" name="file" accept="{{ suffixes }}" required>
+    <input type="text" name="title" placeholder="회의 이름 (비우면 파일 이름)" style="max-width: 320px">
+    <button class="primary" type="submit">올리기</button>
+  </div>
+  <p class="muted">mp3, m4a, wav 등. {{ max_mb }}MB 까지. 올리면 음성 인식과 회의록 초안 작성이 바로 시작되고, 검토·승인 전에는 밖으로 아무것도 보내지 않습니다.</p>
+</form>
+
+<h2>작업 목록</h2>
+{% if not jobs %}<p class="muted">아직 없습니다.</p>{% else %}
+<table>
+  <tr><th>올린 시각</th><th>회의</th><th>상태</th><th></th></tr>
+  {% for job in jobs %}
+  <tr>
+    <td class="muted">{{ job.created_at[:16].replace("T", " ") }}</td>
+    <td><a href="/jobs/{{ job.id }}">{{ job.title }}</a></td>
+    <td><span class="status {{ job.status }}">{{ job.status_label }}</span></td>
+    <td class="muted">{% if job.status == "review" %}검토가 필요합니다{% elif job.status == "failed" %}{{ job.error[:60] }}{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% if refresh %}<p class="muted">진행 중인 작업이 있어 {{ refresh }}초마다 새로 고칩니다.</p>{% endif %}
+{% endblock %}

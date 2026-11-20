@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ job.title }} · 회의록 봇{% endblock %}
+{% block subtitle %}{{ job.title }}{% endblock %}
+{% block content %}
+<h1>{{ job.title }} <span class="status {{ job.status }}">{{ job.status_label }}</span></h1>
+<p class="muted">작업 {{ job.id }} · 올린 시각 {{ job.created_at[:16].replace("T", " ") }}
+  {% if has_transcript %} · <a href="/jobs/{{ job.id }}/transcript" target="_blank">전사 보기</a>{% endif %}</p>
+
+{% if job.status == "failed" %}
+<div class="error">
+  <strong>{{ job.step }} 단계에서 실패</strong><br>{{ job.error }}
+  <form method="post" action="/jobs/{{ job.id }}/retry" style="margin-top:8px"><button type="submit">이 단계부터 다시</button></form>
+</div>
+{% elif pending and job.status not in ("review", "published") %}
+<p class="box">처리 중입니다. {{ refresh }}초마다 새로 고칩니다. 음성 인식은 녹음 10분당 1~2분, 회의록 작성은 1~3분쯤 걸립니다.</p>
+{% endif %}
+
+{% if job.status == "published" %}
+<div class="box">
+  <strong>게시 완료</strong><br>
+  {% if publish.confluence_url %}Confluence: <a href="{{ publish.confluence_url }}" target="_blank">{{ publish.confluence_url }}</a><br>{% endif %}
+  {% if publish.jira_keys %}Jira: {% for key in publish.jira_keys %}<a href="{{ settings.jira_base_url }}/browse/{{ key }}" target="_blank">{{ key }}</a> {% endfor %}<br>{% endif %}
+  {% if publish.teams_sent %}Teams 알림을 보냈습니다.{% endif %}
+</div>
+{% endif %}
+
+{% if job.status in ("review", "failed") and minutes %}
+<h2>회의록 검토</h2>
+<p class="muted">모델이 만든 초안입니다. 틀린 곳을 고치고, 할 일은 티켓이 될 것만 남기세요. 빈 줄은 무시됩니다.</p>
+<form method="post" action="/jobs/{{ job.id }}/approve">
+  <p><label>제목<br><input type="text" name="title" value="{{ minutes.title }}" required></label></p>
+  <p><label>요약<br><textarea name="summary" required>{{ minutes.summary }}</textarea></label></p>
+
+  <fieldset><legend>안건</legend>
+  {% for t in minutes.topics + ([{}] * extra_topics) %}{% set n = loop.index %}
+    <p><input type="text" name="topic_{{ n }}_topic" value="{{ t.topic or '' }}" placeholder="{% if t %}안건{% else %}새 안건 (비우면 추가 안 함){% endif %}">
+    <textarea name="topic_{{ n }}_discussion" placeholder="논의 내용">{{ t.discussion or '' }}</textarea>
+    <textarea name="topic_{{ n }}_decisions" placeholder="결정 사항, 한 줄에 하나">{{ (t.decisions or []) | join("\n") }}</textarea></p>
+  {% endfor %}
+  </fieldset>
+
+  <fieldset><legend>액션아이템 (Jira 티켓이 됩니다)</legend>
+  <table>
+    <tr><th>할 일</th><th style="width:22%">담당자 (회의에서 언급)</th><th style="width:22%">기한 (회의에서 언급)</th></tr>
+    {% for a in minutes.action_items + ([{}] * extra_actions) %}{% set n = loop.index %}
+    <tr>
+      <td><input type="text" name="action_{{ n }}_task" value="{{ a.task or '' }}" placeholder="{% if not a %}새 할 일 (비우면 추가 안 함){% endif %}"></td>
+      <td><input type="text" name="action_{{ n }}_assignee" value="{{ a.assignee or '' }}"></td>
+      <td><input type="text" name="action_{{ n }}_due" value="{{ a.due_date or '' }}"></td>
+    </tr>
+    {% endfor %}
+  </table>
+  </fieldset>
+
+  <fieldset><legend>게시 위치</legend>
+  <div class="row">
+    <label>Confluence 상위 페이지 ID<br><input type="text" name="parent_page_id" value="{{ publish.parent_page_id or settings.confluence_parent_page_id }}" style="width:14em"></label>
+    <label>Confluence 스페이스<br><input type="text" name="space_key" value="{{ publish.space_key or settings.confluence_space_key }}" style="width:8em"></label>
+    <label>Jira 프로젝트<br><input type="text" name="project_key" value="{{ publish.project_key or settings.jira_project_key }}" style="width:8em"></label>
+  </div>
+  <p>
+    <label><input type="checkbox" name="create_jira" value="1" {% if publish.get("create_jira", True) %}checked{% endif %}> 액션아이템마다 Jira 티켓 만들기</label><br>
+    <label><input type="checkbox" name="send_teams" value="1" {% if publish.get("send_teams", True) %}checked{% endif %}> Teams 채널에 알리기</label>
+  </p>
+  </fieldset>
+
+  <div class="row">
+    <button class="primary" type="submit" name="action" value="publish">승인하고 게시</button>
+    <button type="submit" name="action" value="save">고친 내용만 저장</button>
+    <span class="muted">"승인하고 게시"를 누르면 Confluence → Jira → Teams 순서로 보냅니다. 되돌릴 수 없습니다.</span>
+  </div>
+</form>
+{% endif %}
+
+<h2>진행 기록</h2>
+<div class="box events">{% for e in events %}{{ e.at[11:19] }}  {{ e.message }}
+{% endfor %}</div>
+
+{% if job.status not in ("transcribing", "summarizing", "publishing") and not pending %}
+<form method="post" action="/jobs/{{ job.id }}/delete" onsubmit="return confirm('이 작업과 녹음, 전사, 회의록 파일을 지웁니다. 이미 게시한 페이지와 티켓은 남습니다. 계속할까요?')" style="margin-top:24px">
+  <button class="danger" type="submit">작업 지우기</button>
+</form>
+{% endif %}
+{% endblock %}

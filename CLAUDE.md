@@ -47,7 +47,10 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 | `scripts/check_llm.py` | Thor에서 전사 파일을 요약해 보는 점검 |
 | `scripts/check_stt.py` | Thor에서 녹음 파일 하나를 전사해 보는 점검 (`--plan-only`로 자르기만) |
 | `scripts/asr_worker.py` | 봇 전용 컨테이너 안에서 돌 Qwen3-ASR 일꾼. 모델 한 번 올려 여러 wav 처리 |
-| `scripts/jobs.py` | 화면이 생기기 전까지 쓰는 명령줄: new, list, show, run, approve, publish |
+| `src/meetingbot/web/` | 화면 (FastAPI). `app.py` 경로, `forms.py` 검토 폼 해석, `worker.py` 한 건씩 처리하는 스레드, `templates/` |
+| `scripts/run_web.py` | 화면 서버 켜기 (`.venv/bin/python scripts/run_web.py`) |
+| `scripts/jobs.py` | 화면 없이 쓰는 명령줄: new, list, show, run, approve, publish |
+| `requirements-web.txt` | 화면 전용 의존성 (fastapi, uvicorn, jinja2, python-multipart). 나머지는 기본 파이썬 |
 | `tests/` | 네트워크 없이 도는 단위 시험 |
 
 시험: `python3 -m unittest discover -s tests`
@@ -57,7 +60,7 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 - **확인이 구현보다 먼저.** 외부 API 형식은 공식 문서로 확인하고 출처를 코드 주석에 적는다. 확인하지 못한 것은 "미확인"이라고 밝히고 Thor 실행 결과로 검증한다.
 - **비밀 값.** 토큰과 webhook URL은 `.env`에만 둔다. 사용자에게 채팅에 붙이지 말라고 안내하고, 붙였으면 교체를 권한다. `.env` 확인은 값을 가린 출력으로 한다.
 - **공용 장비.** Thor는 여러 사람이 쓴다. 남의 컨테이너, 폴더, 모델을 고치지 않는다. GPU는 시작 전 사용 여부 확인, 한 번에 한 건, 처리 후 즉시 반환.
-- **의존성.** 파이썬 쪽은 기본 기능만 쓴다. 음성 처리에 ffmpeg(시스템 패키지)가 필요하다. 화면(FastAPI)을 만들 때 처음으로 pip 설치가 필요해진다.
+- **의존성.** 봇 본체는 파이썬 기본 기능만 쓴다. 음성 처리에 ffmpeg 가 필요하다. 화면(`web/`)만 `requirements-web.txt` 를 `.venv` 에 설치한다. 시험은 fastapi 가 없으면 화면 시험을 건너뛴다.
 - **호환.** 개발 컴퓨터의 Python이 3.9라서 `X | None` 같은 3.10 이상 문법을 쓰지 않는다.
 - **설명 방식.** 사용자는 이 분야가 처음이다. 쉬운 말로 설명하고, 명령마다 어느 컴퓨터(노트북 PowerShell, Thor)에서 치는지 적고, 결과 읽는 법을 같이 준다.
 - **git.** 작업 브랜치는 `integration-checks`. Thor는 이 브랜치를 clone해서 `git pull`로 받는다.
@@ -76,12 +79,14 @@ Claude Code가 이 저장소에서 작업을 이어갈 때 읽는 안내문이�
 - 본 구현 3번: `db.py`, `gpu.py`, `pipeline.py`, `jobs.py`.
   실패 단계부터 재시도, Jira 티켓 중복 생성 방지, GPU 사용 중이면 대기.
   Thor 확인(2026-11-20): `jobs.py new korean.mp3` → 검토 대기 → `approve --no-jira --no-teams` → `publish` → Confluence 페이지 생성 확인
+- 본 구현 4번 (코드만, Thor 미검증): 화면 `web/`. 업로드, 작업 목록, 진행 기록(자동 새로 고침), 검토 폼(제목·요약·안건·액션아이템 수정,
+  게시 위치 선택, Jira·Teams 끄기), 승인하고 게시, 실패 단계 재시도, 작업 삭제. 서버 재시작 때 진행 중이던 작업 자동 재개.
+  단위 시험 67개. 가짜 음성 인식·Ollama 로 브라우저(Playwright) 흐름 확인. README 작성
 
 바로 다음:
-1. 화면 `web/`: 업로드, 진행 상황, 검토·승인 (FastAPI, Thor 내부에서만 열림, 노트북은 SSH 터널로 접속).
-   `pipeline.py` 의 `new_job`, `run_to_review`, `approve`, `publish` 를 그대로 부른다. 첫 외부 의존성 설치
+1. Thor 에서 화면 확인: `.venv` 만들고 `requirements-web.txt` 설치(aarch64 휠 되는지), `run_web.py`, 노트북 SSH 터널로 접속, 업로드부터 게시까지
 2. 실제 회의 녹음으로 전체 흐름 (액션아이템 추출 품질, 회의실 녹음 품질, Jira·Teams 포함 게시)
-3. 다듬기: 긴 회의 분할 요약, 자동 시작, 보관 기간 지난 녹음 삭제, README
+3. 다듬기: 긴 회의 분할 요약, 화면 서버 자동 시작(systemd user 서비스), 보관 기간 지난 녹음 삭제
 
 미해결:
 - 모델 가중치를 봇 계정 폴더로 복사해 두면 minhojo 님 폴더 의존이 없어진다 (약 4GB). 동의 받은 뒤 진행
